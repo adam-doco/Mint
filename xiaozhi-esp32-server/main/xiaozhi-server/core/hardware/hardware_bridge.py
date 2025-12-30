@@ -1,6 +1,6 @@
 """
 米特(Mint) 硬件通信桥接
-负责与 ESP32 主控和 ESP32-C3 副控的通信
+负责与 ESP32 主控通信，通过 WebSocket 发送 IoT 命令
 """
 
 import json
@@ -25,7 +25,7 @@ logger = setup_logging()
 
 
 class HardwareBridge:
-    """硬件通信桥接类"""
+    """硬件通信桥接类 - 通过 WebSocket 发送 IoT 命令到 ESP32"""
 
     def __init__(self, config: dict = None):
         """
@@ -50,7 +50,7 @@ class HardwareBridge:
 
     async def initialize(self):
         """初始化硬件连接"""
-        # 初始化串口连接（连接 ESP32-C3 表情控制器）
+        # 初始化串口连接（连接 ESP32-C3 表情控制器，可选）
         if self.serial_port:
             await self._init_serial()
         else:
@@ -89,52 +89,53 @@ class HardwareBridge:
         """设置 WebSocket 连接"""
         self.websocket_conn = conn
 
+    # ==================== IoT 命令发送 ====================
+
+    async def _send_iot_command(self, device_name: str, method: str, parameters: dict = None):
+        """
+        发送 IoT 命令到 ESP32
+
+        Args:
+            device_name: 设备名称 (Speaker/Screen/Servo/LED/Expression)
+            method: 方法名称
+            parameters: 参数字典
+        """
+        command = {
+            "name": device_name,
+            "method": method
+        }
+        if parameters:
+            command["parameters"] = parameters
+
+        message = {
+            "type": "iot",
+            "commands": [command]
+        }
+
+        if self.websocket_conn:
+            try:
+                await self.websocket_conn.send(json.dumps(message))
+                logger.bind(tag=TAG).info(f"IoT 命令已发送: {device_name}.{method} {parameters or ''}")
+            except Exception as e:
+                logger.bind(tag=TAG).error(f"发送 IoT 命令失败: {e}")
+        else:
+            logger.bind(tag=TAG).warning("WebSocket 未连接，IoT 命令无法发送")
+
     # ==================== 舵机控制 ====================
 
     async def execute_motion(self, motion: Motion, speed: str = "normal"):
         """
-        执行舵机动作
+        执行舵机动作 - 通过 IoT 命令发送到 ESP32
 
         Args:
             motion: 动作类型
             speed: 速度 (slow/normal/fast)
         """
-        sequence = MOTION_SEQUENCES.get(motion)
-        if not sequence:
-            logger.bind(tag=TAG).warning(f"未知动作: {motion}")
-            return
-
         self.current_motion = motion
         logger.bind(tag=TAG).info(f"执行动作: {motion.value}")
 
-        # 计算速度倍率
-        speed_multiplier = {"slow": 1.5, "normal": 1.0, "fast": 0.6}.get(speed, 1.0)
-
-        # 执行动作序列
-        for position in sequence.positions:
-            await self._send_servo_command(position)
-            await asyncio.sleep(sequence.duration_ms * speed_multiplier / 1000)
-
-    async def _send_servo_command(self, position: ServoPosition):
-        """
-        发送舵机控制命令到 ESP32
-
-        Args:
-            position: 舵机位置
-        """
-        command = {
-            "type": "servo",
-            "pitch": position.pitch,
-            "yaw": position.yaw
-        }
-
-        # 通过 WebSocket 发送到主 ESP32
-        if self.websocket_conn:
-            try:
-                await self.websocket_conn.send(json.dumps(command))
-                logger.bind(tag=TAG).debug(f"舵机命令已发送: P={position.pitch}, Y={position.yaw}")
-            except Exception as e:
-                logger.bind(tag=TAG).error(f"发送舵机命令失败: {e}")
+        # 通过 IoT 命令发送预设动作到 ESP32
+        await self._send_iot_command("Servo", "ExecuteMotion", {"motion": motion.value})
 
     async def set_servo_position(self, pitch: int, yaw: int):
         """
@@ -148,13 +149,14 @@ class HardwareBridge:
         pitch = max(-30, min(30, pitch))
         yaw = max(-45, min(45, yaw))
 
-        await self._send_servo_command(ServoPosition(pitch, yaw))
+        # 通过 IoT 命令发送角度设置到 ESP32
+        await self._send_iot_command("Servo", "SetAngle", {"pan": yaw, "tilt": pitch})
 
     # ==================== 表情控制 ====================
 
     async def set_emotion(self, emotion: Emotion):
         """
-        设置眼睛表情
+        设置眼睛表情 - 通过 IoT 命令发送到 ESP32
 
         Args:
             emotion: 表情类型
@@ -162,13 +164,12 @@ class HardwareBridge:
         self.current_emotion = emotion
         logger.bind(tag=TAG).info(f"设置表情: {emotion.value}")
 
-        # 通过串口发送表情代码到 ESP32-C3
-        command = f"FACE:{emotion.value}\n"
-        await self._send_serial_command(command)
+        # 通过 IoT 命令发送表情到 ESP32
+        await self._send_iot_command("Expression", "SetEmotion", {"emotion": emotion.value})
 
     async def _send_serial_command(self, command: str):
         """
-        通过串口发送命令到 ESP32-C3
+        通过串口发送命令到 ESP32-C3（备用方式）
 
         Args:
             command: 命令字符串
@@ -184,48 +185,48 @@ class HardwareBridge:
 
     async def trigger_blink(self):
         """触发眨眼动画"""
-        await self._send_serial_command("ANIM:blink\n")
+        await self._send_iot_command("Expression", "SetEmotion", {"emotion": "blink"})
 
     async def trigger_wink(self):
         """触发眨单眼动画"""
-        await self._send_serial_command("ANIM:wink\n")
+        await self._send_iot_command("Expression", "SetEmotion", {"emotion": "wink"})
 
     # ==================== LED 控制 ====================
 
     async def set_led_effect(self, effect_name: str):
         """
-        设置 LED 灯效
+        设置 LED 灯效 - 通过 IoT 命令发送到 ESP32
 
         Args:
-            effect_name: 灯效名称 (如 breathing_cyan)
+            effect_name: 灯效名称 (如 rainbow, breathing, pulse 等)
         """
-        effect = LED_EFFECTS.get(effect_name)
-        if not effect:
-            logger.bind(tag=TAG).warning(f"未知灯效: {effect_name}")
-            return
-
         self.current_led = effect_name
         logger.bind(tag=TAG).info(f"设置灯效: {effect_name}")
 
-        # 构建 LED 命令
-        r, g, b = effect.color
-        command = f"LED:{effect.mode.value},{r},{g},{b},{effect.speed},{effect.brightness}\n"
-        await self._send_serial_command(command)
+        # 通过 IoT 命令发送灯效到 ESP32
+        await self._send_iot_command("LED", "SetEffect", {"effect": effect_name})
 
-    async def set_led_color(self, r: int, g: int, b: int, mode: str = "solid"):
+    async def set_led_color(self, r: int, g: int, b: int, brightness: int = 100):
         """
-        直接设置 LED 颜色
+        直接设置 LED 颜色 - 通过 IoT 命令发送到 ESP32
 
         Args:
             r, g, b: RGB 颜色值 (0-255)
-            mode: 模式 (solid/breathing/pulse)
+            brightness: 亮度 (0-100)
         """
-        command = f"LED:{mode},{r},{g},{b},50,80\n"
-        await self._send_serial_command(command)
+        logger.bind(tag=TAG).info(f"设置 LED 颜色: RGB({r},{g},{b})")
+
+        # 通过 IoT 命令发送颜色设置到 ESP32
+        await self._send_iot_command("LED", "SetColor", {
+            "red": r,
+            "green": g,
+            "blue": b,
+            "brightness": brightness
+        })
 
     async def turn_off_led(self):
         """关闭 LED"""
-        await self.set_led_effect("off")
+        await self._send_iot_command("LED", "SetEffect", {"effect": "off"})
 
     # ==================== 组合动作 ====================
 
