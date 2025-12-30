@@ -44,6 +44,7 @@ from core.utils import textUtils
 from core.hardware.action_parser import ActionParser
 from core.hardware.action_executor import ActionExecutor
 from core.hardware.hardware_bridge import HardwareBridge
+from core.connection_registry import connection_registry
 
 TAG = __name__
 
@@ -196,6 +197,10 @@ class ConnectionHandler:
             # 认证通过,继续处理
             self.websocket = ws
 
+            # 注册连接到全局注册表 (供 HTTP API 使用)
+            if self.device_id:
+                connection_registry.register(self.device_id, self)
+
             # 检查是否来自MQTT连接
             request_path = ws.request.path
             self.conn_from_mqtt_gateway = request_path.endswith("?from=mqtt_gateway")
@@ -229,6 +234,10 @@ class ConnectionHandler:
             self.logger.bind(tag=TAG).error(f"Connection error: {str(e)}-{stack_trace}")
             return
         finally:
+            # 从全局注册表注销连接
+            if self.device_id:
+                connection_registry.unregister(self.device_id)
+
             try:
                 await self._save_and_close(ws)
             except Exception as final_error:

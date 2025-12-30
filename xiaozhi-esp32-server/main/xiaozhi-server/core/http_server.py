@@ -3,6 +3,7 @@ from aiohttp import web
 from config.logger import setup_logging
 from core.api.ota_handler import OTAHandler
 from core.api.vision_handler import VisionHandler
+from core.api.hardware_handler import HardwareHandler
 
 TAG = __name__
 
@@ -13,6 +14,7 @@ class SimpleHttpServer:
         self.logger = setup_logging()
         self.ota_handler = OTAHandler(config)
         self.vision_handler = VisionHandler(config)
+        self.hardware_handler = HardwareHandler(config)
 
     def _get_websocket_url(self, local_ip: str, port: int) -> str:
         """获取websocket地址
@@ -72,6 +74,36 @@ class SimpleHttpServer:
                         web.options(
                             "/mcp/vision/explain", self.vision_handler.handle_options
                         ),
+                    ]
+                )
+
+                # 硬件控制 API 路由 (供 Dify 调用)
+                app.add_routes(
+                    [
+                        # 设备列表
+                        web.get("/api/v1/devices", self.hardware_handler.handle_devices),
+                        web.options("/api/v1/devices", self.hardware_handler.handle_options),
+                        # 音量控制
+                        web.post("/api/v1/volume", self.hardware_handler.handle_volume),
+                        web.options("/api/v1/volume", self.hardware_handler.handle_options),
+                        # 屏幕亮度
+                        web.post("/api/v1/brightness", self.hardware_handler.handle_brightness),
+                        web.options("/api/v1/brightness", self.hardware_handler.handle_options),
+                        # 屏幕开关
+                        web.post("/api/v1/screen/power", self.hardware_handler.handle_screen_power),
+                        web.options("/api/v1/screen/power", self.hardware_handler.handle_options),
+                        # 动作控制
+                        web.post("/api/v1/motion", self.hardware_handler.handle_motion),
+                        web.options("/api/v1/motion", self.hardware_handler.handle_options),
+                        # 表情控制
+                        web.post("/api/v1/emotion", self.hardware_handler.handle_emotion),
+                        web.options("/api/v1/emotion", self.hardware_handler.handle_options),
+                        # LED 灯效
+                        web.post("/api/v1/led", self.hardware_handler.handle_led),
+                        web.options("/api/v1/led", self.hardware_handler.handle_options),
+                        # LED 自定义颜色
+                        web.post("/api/v1/led/color", self.hardware_handler.handle_led_color),
+                        web.options("/api/v1/led/color", self.hardware_handler.handle_options),
                     ]
                 )
 

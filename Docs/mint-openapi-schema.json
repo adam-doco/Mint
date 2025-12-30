@@ -1,0 +1,277 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Mint Hardware Control API",
+    "description": "米特(Mint)具身智能硬件控制 API。通过此 API 可以控制米特的音量、屏幕亮度、舵机动作、表情和 LED 灯效。\n\n**鉴权方式** (二选一):\n- Authorization: Bearer <your-api-key>\n- X-API-Key: <your-api-key>",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://120.26.38.27:8003",
+      "description": "生产服务器"
+    }
+  ],
+  "security": [
+    {"BearerAuth": []},
+    {"ApiKeyAuth": []}
+  ],
+  "paths": {
+    "/api/v1/devices": {
+      "get": {
+        "operationId": "getDevices",
+        "summary": "获取已连接设备列表",
+        "description": "返回当前所有已连接的米特设备ID列表",
+        "responses": {
+          "200": {
+            "description": "成功获取设备列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean"},
+                    "devices": {"type": "array", "items": {"type": "string"}},
+                    "count": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/volume": {
+      "post": {
+        "operationId": "controlVolume",
+        "summary": "控制音量",
+        "description": "控制米特的音量大小。action: set(设置具体值), up(调大), down(调小), mute(静音), unmute(取消静音)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_id", "action"],
+                "properties": {
+                  "device_id": {"type": "string", "description": "设备ID"},
+                  "action": {"type": "string", "enum": ["set", "up", "down", "mute", "unmute"], "description": "音量操作类型"},
+                  "value": {"type": "integer", "minimum": 0, "maximum": 100, "description": "音量值(0-100)，仅当action为set时需要"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "操作成功", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommandResponse"}}}},
+          "401": {"description": "未授权", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}}}}
+        }
+      }
+    },
+    "/api/v1/brightness": {
+      "post": {
+        "operationId": "controlBrightness",
+        "summary": "控制屏幕亮度",
+        "description": "控制米特屏幕亮度。action: set(设置具体值), up(调亮), down(调暗)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_id", "action"],
+                "properties": {
+                  "device_id": {"type": "string", "description": "设备ID"},
+                  "action": {"type": "string", "enum": ["set", "up", "down"], "description": "亮度操作类型"},
+                  "value": {"type": "integer", "minimum": 0, "maximum": 100, "description": "亮度值(0-100)，仅当action为set时需要"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "操作成功", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommandResponse"}}}},
+          "401": {"description": "未授权", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}}}}
+        }
+      }
+    },
+    "/api/v1/screen/power": {
+      "post": {
+        "operationId": "controlScreenPower",
+        "summary": "控制屏幕开关",
+        "description": "打开或关闭米特的屏幕",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_id", "power"],
+                "properties": {
+                  "device_id": {"type": "string", "description": "设备ID"},
+                  "power": {"type": "string", "enum": ["on", "off"], "description": "开关状态"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "操作成功", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommandResponse"}}}},
+          "401": {"description": "未授权", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}}}}
+        }
+      }
+    },
+    "/api/v1/motion": {
+      "post": {
+        "operationId": "controlMotion",
+        "summary": "控制舵机动作",
+        "description": "控制米特头部舵机执行动作: neutral(回正), nod(点头), shake(摇头), tilt_left(左歪头), tilt_right(右歪头), look_up(抬头), look_down(低头), look_left(左看), look_right(右看), excited(兴奋), shy(害羞), greeting(打招呼)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_id", "motion"],
+                "properties": {
+                  "device_id": {"type": "string", "description": "设备ID"},
+                  "motion": {"type": "string", "enum": ["neutral", "nod", "shake", "tilt_left", "tilt_right", "look_up", "look_down", "look_left", "look_right", "excited", "shy", "greeting"], "description": "动作名称"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "操作成功", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommandResponse"}}}},
+          "401": {"description": "未授权", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}}}}
+        }
+      }
+    },
+    "/api/v1/emotion": {
+      "post": {
+        "operationId": "controlEmotion",
+        "summary": "控制表情",
+        "description": "控制米特表情: neutral(平静), happy(开心), sad(悲伤), angry(生气), surprised(惊讶), sleepy(困倦), thinking(思考), love(爱心), doubt(疑惑), scared(害怕), proud(骄傲), speechless(无语)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_id", "emotion"],
+                "properties": {
+                  "device_id": {"type": "string", "description": "设备ID"},
+                  "emotion": {"type": "string", "enum": ["neutral", "happy", "sad", "angry", "surprised", "sleepy", "thinking", "love", "doubt", "scared", "proud", "speechless"], "description": "表情名称"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "操作成功", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommandResponse"}}}},
+          "401": {"description": "未授权", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}}}}
+        }
+      }
+    },
+    "/api/v1/led": {
+      "post": {
+        "operationId": "controlLed",
+        "summary": "控制LED灯效",
+        "description": "控制LED灯效: default(白光), rainbow(彩虹), breathing(呼吸), pulse(脉冲), sparkle(星光), wave(波浪), fire(火焰), ocean(海洋), forest(森林), sunset(日落), aurora(极光), party(派对), relax(放松), focus(专注), sleep(睡眠), alert(警告)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_id", "effect"],
+                "properties": {
+                  "device_id": {"type": "string", "description": "设备ID"},
+                  "effect": {"type": "string", "enum": ["default", "rainbow", "breathing", "pulse", "sparkle", "wave", "fire", "ocean", "forest", "sunset", "aurora", "party", "relax", "focus", "sleep", "alert"], "description": "灯效名称"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "操作成功", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommandResponse"}}}},
+          "401": {"description": "未授权", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}}}}
+        }
+      }
+    },
+    "/api/v1/led/color": {
+      "post": {
+        "operationId": "controlLedColor",
+        "summary": "设置LED自定义颜色",
+        "description": "设置LED的自定义RGB颜色和亮度",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_id"],
+                "properties": {
+                  "device_id": {"type": "string", "description": "设备ID"},
+                  "red": {"type": "integer", "minimum": 0, "maximum": 255, "default": 255, "description": "红色分量(0-255)"},
+                  "green": {"type": "integer", "minimum": 0, "maximum": 255, "default": 255, "description": "绿色分量(0-255)"},
+                  "blue": {"type": "integer", "minimum": 0, "maximum": 255, "default": 255, "description": "蓝色分量(0-255)"},
+                  "brightness": {"type": "integer", "minimum": 0, "maximum": 100, "default": 100, "description": "亮度(0-100)"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "操作成功", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommandResponse"}}}},
+          "401": {"description": "未授权", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UnauthorizedResponse"}}}}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "使用 Bearer Token 鉴权。在请求头中添加: Authorization: Bearer <your-api-key>"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "使用 API Key 鉴权。在请求头中添加: X-API-Key: <your-api-key>"
+      }
+    },
+    "schemas": {
+      "CommandResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "description": "操作是否成功"},
+          "message": {"type": "string", "description": "操作结果消息"}
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "error": {"type": "string", "description": "错误信息"}
+        }
+      },
+      "UnauthorizedResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": false},
+          "error": {"type": "string", "example": "未授权访问，请提供有效的 API Key"}
+        }
+      }
+    }
+  }
+}
